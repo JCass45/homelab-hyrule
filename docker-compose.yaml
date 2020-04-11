@@ -1,0 +1,73 @@
+version: "3"
+
+services:
+  nzbget:
+    image: linuxserver/nzbget
+    container_name: nzbget
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=Europe/Dublin
+    volumes:
+      - /media/config/nzbget:/config
+      - /media/usenet:/data/usenet
+    ports:
+      - 8081:6789
+    restart: unless-stopped
+
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - VERSION=docker
+      - TZ=Europe/Dublin
+      - PLEX_CLAIM=claim-JVGAPx5i_tCH761C9YWq
+      - ADVERTISE_IP=http://192.168.0.102:8082
+    ports:
+      - 32400:32400 # Main Plex Port
+      - 3005:3005 # Plex Companion
+      - 5353:5353/udp # Bonjour/Avahi Discovery
+      - 32469:32469 # Plex DLNA Server
+      - 1900:1900/udp # Plex DLNA Server
+      - 32410:32410/udp # For GDM discovery on LAN
+      - 32412:32412/udp # ^
+      - 32413:32413/udp # ^
+      - 32414:32414/udp # ^
+    volumes:
+      - /media/config/plex:/config
+      - /media/media:/data/media
+    restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=Europe/Dublin
+    volumes:
+      - /media/config/radarr:/config
+      - /media:/data
+    ports:
+      - 8083:7878
+    restart: unless-stopped
+
+  sonarr:
+    image: linuxserver/sonarr
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=Europe/Dublin
+    volumes:
+      - /media/config/sonarr:/config
+      - /media:/data
+    ports:
+      - 8084:8989
+    restart: unless-stopped
