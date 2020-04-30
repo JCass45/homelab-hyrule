@@ -1,6 +1,18 @@
 version: "3"
 
 services:
+  traefik:
+    container_name: traefik
+    image: traefik:v2.2
+    ports:
+      - 80:80
+      - 8080:8080
+    networks:
+      - proxy
+    volumes:
+      - ${HOME}/homelab-hyrule/traefik.yaml:/traefik.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   nzbget:
     image: linuxserver/nzbget
     container_name: nzbget
@@ -9,17 +21,26 @@ services:
       - PGID=1000
       - UMASK=002
       - TZ=Europe/Dublin
+    networks:
+      - proxy
     volumes:
       - /media/config/nzbget:/config
-      - /media/usenet:/data/usenet
-    ports:
-      - 8081:6789
+      - /media/usenet/completed:/downloads/completed
+      - /media/usenet/intermediate:/downloads/intermediate
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nzbget.entrypoints=http"
+      - "traefik.http.routers.nzbget.rule=Host(`nzbget.hyrule.lan`)"
+      - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
     restart: unless-stopped
 
   plex:
-    image: linuxserver/plex
+    image: plexinc/pms-docker
     container_name: plex
-    network_mode: host
+    networks: # Note there is a custom routing rule on the router 172.25.xxx.xxx -> Hyrule
+      - proxy
+    ports:
+      - 32400:32400
     environment:
       - PUID=1000
       - PGID=1000
@@ -29,6 +50,11 @@ services:
     volumes:
       - /media/config/plex:/config
       - /media/media:/data/media
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.plex.entrypoints=http"
+      - "traefik.http.routers.plex.rule=Host(`plex.hyrule.lan`)"
+      - "traefik.http.services.plex.loadbalancer.server.port=32400"
     restart: unless-stopped
 
   radarr:
@@ -42,8 +68,14 @@ services:
     volumes:
       - /media/config/radarr:/config
       - /media:/data
-    ports:
-      - 8083:7878
+      - /media/usenet/completed:/downloads/completed
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.radarr.entrypoints=http"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.hyrule.lan`)"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
     restart: unless-stopped
 
   sonarr:
@@ -57,6 +89,16 @@ services:
     volumes:
       - /media/config/sonarr:/config
       - /media:/data
-    ports:
-      - 8084:8989
+      - /media/usenet/completed:/downloads/completed
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarr.entrypoints=http"
+      - "traefik.http.routers.sonarr.rule=Host(`sonarr.hyrule.lan`)"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
     restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
