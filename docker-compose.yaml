@@ -37,7 +37,7 @@ services:
   plex:
     image: plexinc/pms-docker
     container_name: plex
-    networks: # Note there is a custom routing rule on the router 172.25.xxx.xxx -> Hyrule
+    networks:
       - proxy
     ports:
       - 32400:32400
@@ -45,8 +45,8 @@ services:
       - PUID=1000
       - PGID=1000
       - UMASK=002
-      - VERSION=docker
       - TZ=Europe/Dublin
+      - ADVERTISE_IP=http://192.168.0.102:32400/
     volumes:
       - /media/config/plex:/config
       - /media/media:/data/media
