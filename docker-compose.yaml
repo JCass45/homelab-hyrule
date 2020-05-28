@@ -6,21 +6,28 @@ services:
     image: traefik:v2.2
     ports:
       - 80:80
-      - 8080:8080
+      - 443:443
     networks:
       - proxy
     volumes:
-      - ${HOME}/homelab-hyrule/traefik.yaml:/traefik.yaml:ro
+      - ${HOME}/homelab-hyrule/config/traefik:/etc/traefik
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.entryPoints=web
+      - traefik.http.routers.api.rule=Host(`traefik.hyrule.lan`) && PathPrefix(`/api`)
+      - traefik.http.routers.api.service=api@internal
+      - traefik.http.routers.dashboard.entryPoints=web
+      - traefik.http.routers.dashboard.rule=Host(`traefik.hyrule.lan`) && PathPrefix(`/`)
+      - traefik.http.routers.dashboard.middlewares=dashboard_redirect@internal
+      - traefik.http.routers.dashboard.middlewares=dashboard_stripprefix@internal
+      - traefik.http.routers.dashboard.service=dashboard@internal
 
   nzbget:
     image: linuxserver/nzbget
     container_name: nzbget
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - TZ=Europe/Dublin
+    env_file:
+      - env/common.env
     networks:
       - proxy
     volumes:
@@ -28,10 +35,15 @@ services:
       - /media/usenet/completed:/downloads/completed
       - /media/usenet/intermediate:/downloads/intermediate
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nzbget.entrypoints=http"
-      - "traefik.http.routers.nzbget.rule=Host(`nzbget.hyrule.lan`)"
-      - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
+      - traefik.enable=true
+      - traefik.http.routers.nzbget-https.tls=true
+      - traefik.http.routers.nzbget-https.entrypoints=web-secure
+      - traefik.http.routers.nzbget-https.tls.certresolver=default
+      - traefik.http.routers.nzbget-https.middlewares=auth@file
+      - traefik.http.routers.nzbget-https.rule=Host(`nzbget.jackc.ie`)
+      - traefik.http.routers.nzbget-http.entrypoints=web
+      - traefik.http.routers.nzbget-http.rule=Host(`nzbget.hyrule.lan`)
+      - traefik.http.services.nzbget.loadbalancer.server.port=6789
     restart: unless-stopped
 
   plex:
@@ -41,30 +53,28 @@ services:
       - proxy
     ports:
       - 32400:32400
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - TZ=Europe/Dublin
-      - ADVERTISE_IP=http://192.168.0.102:32400/
+    env_file:
+      - env/common.env
+      - env/plex.env
     volumes:
       - /media/config/plex:/config
       - /media/media:/data/media
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.plex.entrypoints=http"
-      - "traefik.http.routers.plex.rule=Host(`plex.hyrule.lan`)"
-      - "traefik.http.services.plex.loadbalancer.server.port=32400"
+      - traefik.enable=true
+      - traefik.http.routers.plex-https.tls=true
+      - traefik.http.routers.plex-https.entrypoints=web-secure
+      - traefik.http.routers.plex-https.tls.certresolver=default
+      - traefik.http.routers.plex-https.rule=Host(`plex.jackc.ie`)
+      - traefik.http.routers.plex-http.entrypoints=web
+      - traefik.http.routers.plex-http.rule=Host(`plex.hyrule.lan`)
+      - traefik.http.services.plex.loadbalancer.server.port=32400
     restart: unless-stopped
 
   radarr:
     image: linuxserver/radarr
     container_name: radarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - TZ=Europe/Dublin
+    env_file:
+      - env/common.env
     volumes:
       - /media/config/radarr:/config
       - /media:/data
@@ -72,20 +82,22 @@ services:
     networks:
       - proxy
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.radarr.entrypoints=http"
-      - "traefik.http.routers.radarr.rule=Host(`radarr.hyrule.lan`)"
-      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      - traefik.enable=true
+      - traefik.http.routers.radarr-https.tls=true
+      - traefik.http.routers.radarr-https.entrypoints=web-secure
+      - traefik.http.routers.radarr-https.tls.certresolver=default
+      - traefik.http.routers.radarr-https.middlewares=auth@file
+      - traefik.http.routers.radarr-https.rule=Host(`radarr.jackc.ie`)
+      - traefik.http.routers.radarr.entrypoints=web
+      - traefik.http.routers.radarr.rule=Host(`radarr.hyrule.lan`)
+      - traefik.http.services.radarr.loadbalancer.server.port=7878
     restart: unless-stopped
 
   sonarr:
     image: linuxserver/sonarr
     container_name: sonarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - TZ=Europe/Dublin
+    env_file:
+      - env/common.env
     volumes:
       - /media/config/sonarr:/config
       - /media:/data
@@ -93,10 +105,15 @@ services:
     networks:
       - proxy
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.sonarr.entrypoints=http"
-      - "traefik.http.routers.sonarr.rule=Host(`sonarr.hyrule.lan`)"
-      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+      - traefik.enable=true
+      - traefik.http.routers.sonarr-https.entrypoints=web-secure
+      - traefik.http.routers.sonarr-https.tls=true
+      - traefik.http.routers.sonarr-https.tls.certresolver=default
+      - traefik.http.routers.sonarr-https.middlewares=auth@file
+      - traefik.http.routers.sonarr-https.rule=Host(`sonarr.jackc.ie`)
+      - traefik.http.routers.sonarr.entrypoints=web
+      - traefik.http.routers.sonarr.rule=Host(`sonarr.hyrule.lan`)
+      - traefik.http.services.sonarr.loadbalancer.server.port=8989
     restart: unless-stopped
 
 networks:
