@@ -10,8 +10,8 @@ services:
     networks:
       - proxy
     volumes:
-      - ${HOME}/homelab-hyrule/config/traefik:/etc/traefik
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik:/etc/traefik
     labels:
       - traefik.enable=true
       - traefik.http.routers.api.entryPoints=web
@@ -31,9 +31,8 @@ services:
     networks:
       - proxy
     volumes:
-      - /media/config/nzbget:/config
-      - /media/usenet/completed:/downloads/completed
-      - /media/usenet/intermediate:/downloads/intermediate
+      - /external-hdd/config/nzbget:/config
+      - /external-hdd/downloads:/downloads/downloads
     labels:
       - traefik.enable=true
       - traefik.http.routers.nzbget-https.tls=true
@@ -44,6 +43,8 @@ services:
       - traefik.http.routers.nzbget-http.entrypoints=web
       - traefik.http.routers.nzbget-http.rule=Host(`nzbget.hyrule.lan`)
       - traefik.http.services.nzbget.loadbalancer.server.port=6789
+    depends_on:
+      - traefik
     restart: unless-stopped
 
   plex:
@@ -57,8 +58,8 @@ services:
       - env/common.env
       - env/plex.env
     volumes:
-      - /media/config/plex:/config
-      - /media/media:/data/media
+      - /external-hdd/config/plex:/config
+      - /external-hdd/media:/downloads/media
     labels:
       - traefik.enable=true
       - traefik.http.routers.plex-https.tls=true
@@ -68,6 +69,8 @@ services:
       - traefik.http.routers.plex-http.entrypoints=web
       - traefik.http.routers.plex-http.rule=Host(`plex.hyrule.lan`)
       - traefik.http.services.plex.loadbalancer.server.port=32400
+    depends_on:
+      - traefik
     restart: unless-stopped
 
   radarr:
@@ -76,9 +79,8 @@ services:
     env_file:
       - env/common.env
     volumes:
-      - /media/config/radarr:/config
-      - /media:/data
-      - /media/usenet/completed:/downloads/completed
+      - /external-hdd/config/radarr:/config
+      - /external-hdd:/downloads
     networks:
       - proxy
     labels:
@@ -91,6 +93,8 @@ services:
       - traefik.http.routers.radarr.entrypoints=web
       - traefik.http.routers.radarr.rule=Host(`radarr.hyrule.lan`)
       - traefik.http.services.radarr.loadbalancer.server.port=7878
+    depends_on:
+      - traefik
     restart: unless-stopped
 
   sonarr:
@@ -99,9 +103,8 @@ services:
     env_file:
       - env/common.env
     volumes:
-      - /media/config/sonarr:/config
-      - /media:/data
-      - /media/usenet/completed:/downloads/completed
+      - /external-hdd/config/sonarr:/config
+      - /external-hdd:/downloads
     networks:
       - proxy
     labels:
@@ -114,8 +117,68 @@ services:
       - traefik.http.routers.sonarr.entrypoints=web
       - traefik.http.routers.sonarr.rule=Host(`sonarr.hyrule.lan`)
       - traefik.http.services.sonarr.loadbalancer.server.port=8989
+    depends_on:
+      - traefik
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb
+    container_name: influxdb
+    volumes:
+      - /influxdb:/var/lib/influxdb
+      - ./config/influxdb/influxdb.conf:/etc/influxdb/influxdb.conf
+    networks:
+      - database
+    restart: unless-stopped
+
+  telegraf:
+    image: telegraf
+    container_name: telegraf
+    ports:
+      - 8125:8125/udp
+    volumes:
+      - ./config/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
+    networks:
+      - database
+    env_file:
+      - env/telegraf.env
+    depends_on:
+      - influxdb
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    networks:
+      - proxy
+      - database
+    ports:
+      - 3000:3000
+    volumes:
+      - /grafana:/var/lib/grafana
+    env_file:
+      - env/grafana.env
+    depends_on:
+      - influxdb
+      - traefik
+    user: "1000"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana-https.tls=true
+      - traefik.http.routers.grafana-https.entrypoints=web-secure
+      - traefik.http.routers.grafana-https.tls.certresolver=default
+      - traefik.http.routers.grafana-https.middlewares=auth@file
+      - traefik.http.routers.grafana-https.rule=Host(`grafana.jackc.ie`)
+      - traefik.http.routers.grafana.entrypoints=web
+      - traefik.http.routers.grafana.rule=Host(`grafana.hyrule.lan`)
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
     restart: unless-stopped
 
 networks:
+  database:
+    driver: bridge
   proxy:
-    external: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.26.0.0/16

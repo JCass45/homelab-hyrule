@@ -14,12 +14,11 @@ providers:
     watch: true
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: proxy
+    network: homelab-hyrule_proxy
   providersThrottleDuration: 10s
 certificatesResolvers:
   default:
     acme:
-      email: "j.cassidy45@gmail.com"
       storage: "/etc/traefik/acme.json"
       keyType: RSA2048
       tlsChallenge: {}
